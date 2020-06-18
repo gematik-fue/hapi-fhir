@@ -997,11 +997,6 @@ public class SearchBuilder implements ISearchBuilder {
 					}
 
 					initializeIteratorQuery(myMaxResultsToFetch);
-
-					// If the query resulted in extra results being requested
-					if (myAlsoIncludePids != null) {
-						myPreResultsIterator = myAlsoIncludePids.iterator();
-					}
 				}
 
 				if (myNext == null) {
@@ -1118,6 +1113,11 @@ public class SearchBuilder implements ISearchBuilder {
 
 		private void initializeIteratorQuery(Integer theMaxResultsToFetch) {
 			final TypedQuery<Long> query = createQuery(mySort, theMaxResultsToFetch, false, myRequest);
+
+			// If the query resulted in extra results being requested
+			if (myAlsoIncludePids != null) {
+				myPreResultsIterator = myAlsoIncludePids.iterator();
+			}
 
 			mySearchRuntimeDetails.setQueryStopwatch(new StopWatch());
 
