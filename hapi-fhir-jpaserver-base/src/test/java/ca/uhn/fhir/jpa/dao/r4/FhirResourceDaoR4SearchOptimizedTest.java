@@ -1,9 +1,10 @@
 package ca.uhn.fhir.jpa.dao.r4;
 
-import ca.uhn.fhir.jpa.dao.DaoConfig;
+import ca.uhn.fhir.jpa.api.config.DaoConfig;
 import ca.uhn.fhir.jpa.dao.data.ISearchDao;
 import ca.uhn.fhir.jpa.dao.data.ISearchResultDao;
 import ca.uhn.fhir.jpa.entity.Search;
+import ca.uhn.fhir.jpa.model.entity.ResourceIndexedSearchParamToken;
 import ca.uhn.fhir.jpa.model.entity.ResourceTable;
 import ca.uhn.fhir.jpa.model.search.SearchStatusEnum;
 import ca.uhn.fhir.jpa.search.PersistedJpaBundleProvider;
@@ -30,7 +31,6 @@ import org.junit.Test;
 import org.springframework.aop.framework.AopProxyUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.concurrent.ThreadPoolExecutorFactoryBean;
-import org.springframework.test.context.TestPropertySource;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -68,6 +68,7 @@ public class FhirResourceDaoR4SearchOptimizedTest extends BaseJpaR4Test {
 		mySearchCoordinatorSvcImpl.setSyncSizeForUnitTests(SearchCoordinatorSvcImpl.DEFAULT_SYNC_SIZE);
 		myDaoConfig.setSearchPreFetchThresholds(new DaoConfig().getSearchPreFetchThresholds());
 		myCaptureQueriesListener.setCaptureQueryStackTrace(false);
+		myDaoConfig.setIndexMissingFields(new DaoConfig().getIndexMissingFields());
 	}
 
 	private void create200Patients() {
@@ -102,6 +103,7 @@ public class FhirResourceDaoR4SearchOptimizedTest extends BaseJpaR4Test {
 
 	@Test
 	public void testFetchCountWithMultipleIndexesOnOneResource() {
+		myDaoConfig.setIndexMissingFields(DaoConfig.IndexEnabledEnum.ENABLED);
 		create200Patients();
 
 		// Already have 200, let's add number 201 with a bunch of similar names
@@ -163,7 +165,7 @@ public class FhirResourceDaoR4SearchOptimizedTest extends BaseJpaR4Test {
 	}
 
 	@Test
-	public void testFetchTotalAccurateForSlowLoading() throws InterruptedException {
+	public void testFetchTotalAccurateForSlowLoading() {
 		create200Patients();
 
 		mySearchCoordinatorSvcImpl.setLoadingThrottleForUnitTests(25);
@@ -690,7 +692,7 @@ public class FhirResourceDaoR4SearchOptimizedTest extends BaseJpaR4Test {
 		myCaptureQueriesListener.logSelectQueries();
 
 		String selectQuery = myCaptureQueriesListener.getSelectQueries().get(1).getSql(true, true);
-		assertThat(selectQuery, containsString("HASH_VALUE in"));
+		assertThat(selectQuery, containsString("HASH_VALUE="));
 		assertThat(selectQuery, not(containsString("HASH_SYS")));
 
 	}
@@ -753,6 +755,8 @@ public class FhirResourceDaoR4SearchOptimizedTest extends BaseJpaR4Test {
 
 	@Test
 	public void testWritesPerformMinimalSqlStatements() {
+		myDaoConfig.setIndexMissingFields(DaoConfig.IndexEnabledEnum.ENABLED);
+
 		Patient p = new Patient();
 		p.addIdentifier().setSystem("sys1").setValue("val1");
 		p.addIdentifier().setSystem("sys2").setValue("val2");
@@ -836,8 +840,6 @@ public class FhirResourceDaoR4SearchOptimizedTest extends BaseJpaR4Test {
 		assertEquals(1, myCaptureQueriesListener.countSelectQueriesForCurrentThread());
 		assertEquals(4, myCaptureQueriesListener.countInsertQueriesForCurrentThread());
 		assertEquals(0, myCaptureQueriesListener.countDeleteQueriesForCurrentThread());
-		// Because of the forced ID's bidirectional link HFJ_RESOURCE <-> HFJ_FORCED_ID
-		assertEquals(1, myCaptureQueriesListener.countUpdateQueriesForCurrentThread());
 		runInTransaction(() -> {
 			assertEquals(1, myResourceTableDao.count());
 			assertEquals(1, myResourceHistoryTableDao.count());

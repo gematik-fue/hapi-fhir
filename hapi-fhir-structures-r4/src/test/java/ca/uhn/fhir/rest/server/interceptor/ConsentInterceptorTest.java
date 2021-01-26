@@ -35,19 +35,21 @@ import org.junit.runner.RunWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
 import org.mockito.Mock;
+import org.mockito.Mockito;
+import org.mockito.invocation.Invocation;
 import org.mockito.junit.MockitoJUnitRunner;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
+import static org.awaitility.Awaitility.await;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.Matchers.not;
 import static org.junit.Assert.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
-
-//import static org.hamcrest.Matchers.any;
 
 @RunWith(MockitoJUnitRunner.class)
 public class ConsentInterceptorTest {
@@ -201,12 +203,13 @@ public class ConsentInterceptorTest {
 			assertThat(responseContent, containsString("A DIAG"));
 		}
 
-		verify(myConsentSvc, times(1)).startOperation(any(), any());
-		verify(myConsentSvc, times(2)).canSeeResource(any(), any(), any());
-		verify(myConsentSvc, times(3)).willSeeResource(any(), any(), any());
-		verify(myConsentSvc, times(1)).completeOperationSuccess(any(), any());
-		verify(myConsentSvc, times(0)).completeOperationFailure(any(), any(), any());
+		verify(myConsentSvc, timeout(10000).times(1)).startOperation(any(), any());
+		verify(myConsentSvc, timeout(10000).times(2)).canSeeResource(any(), any(), any());
+		verify(myConsentSvc, timeout(10000).times(3)).willSeeResource(any(), any(), any());
+		verify(myConsentSvc, timeout(10000).times(1)).completeOperationSuccess(any(), any());
+		verify(myConsentSvc, timeout(10000).times(0)).completeOperationFailure(any(), any(), any());
 		verifyNoMoreInteractions(myConsentSvc);
+
 	}
 
 	@Test
@@ -241,6 +244,7 @@ public class ConsentInterceptorTest {
 		ourPatientProvider.store((Patient) new Patient().setActive(true).setId("PTA"));
 		ourPatientProvider.store((Patient) new Patient().setActive(false).setId("PTB"));
 
+		reset(myConsentSvc);
 		when(myConsentSvc.startOperation(any(), any())).thenReturn(ConsentOutcome.PROCEED);
 		when(myConsentSvc.canSeeResource(any(), any(), any())).thenReturn(ConsentOutcome.PROCEED);
 		when(myConsentSvc.willSeeResource(any(RequestDetails.class), any(IBaseResource.class), any())).thenAnswer(t->{
@@ -266,10 +270,10 @@ public class ConsentInterceptorTest {
 			assertEquals("PTB", response.getEntry().get(1).getResource().getIdElement().getIdPart());
 		}
 
-		verify(myConsentSvc, times(1)).startOperation(any(), any());
-		verify(myConsentSvc, times(2)).canSeeResource(any(), any(), any());
-		verify(myConsentSvc, times(3)).willSeeResource(any(), any(), any());
-		verify(myConsentSvc, times(1)).completeOperationSuccess(any(), any());
+		verify(myConsentSvc, timeout(1000).times(1)).startOperation(any(), any());
+		verify(myConsentSvc, timeout(1000).times(2)).canSeeResource(any(), any(), any());
+		verify(myConsentSvc, timeout(1000).times(3)).willSeeResource(any(), any(), any());
+		verify(myConsentSvc, timeout(1000).times(1)).completeOperationSuccess(any(), any());
 		verify(myConsentSvc, times(0)).completeOperationFailure(any(), any(), any());
 		verifyNoMoreInteractions(myConsentSvc);
 	}

@@ -1,7 +1,7 @@
 package ca.uhn.fhir.jpa.dao.r4;
 
-import ca.uhn.fhir.jpa.dao.DaoConfig;
-import ca.uhn.fhir.jpa.model.cross.ResourcePersistentId;
+import ca.uhn.fhir.jpa.api.config.DaoConfig;
+import ca.uhn.fhir.rest.api.server.storage.ResourcePersistentId;
 import ca.uhn.fhir.jpa.model.entity.ResourceHistoryTable;
 import ca.uhn.fhir.jpa.model.entity.ResourceTable;
 import ca.uhn.fhir.jpa.searchparam.SearchParameterMap;
@@ -18,7 +18,6 @@ import org.hl7.fhir.instance.model.api.IBaseResource;
 import org.hl7.fhir.instance.model.api.IIdType;
 import org.hl7.fhir.r4.model.*;
 import org.junit.*;
-import org.springframework.test.context.TestPropertySource;
 
 import java.util.*;
 
@@ -35,6 +34,8 @@ public class FhirResourceDaoR4UpdateTest extends BaseJpaR4Test {
 	public void afterResetDao() {
 		myDaoConfig.setResourceMetaCountHardLimit(new DaoConfig().getResourceMetaCountHardLimit());
 		myDaoConfig.setIndexMissingFields(new DaoConfig().getIndexMissingFields());
+		myDaoConfig.setResourceServerIdStrategy(new DaoConfig().getResourceServerIdStrategy());
+		myDaoConfig.setResourceClientIdStrategy(new DaoConfig().getResourceClientIdStrategy());
 	}
 
 	@Before
@@ -84,6 +85,38 @@ public class FhirResourceDaoR4UpdateTest extends BaseJpaR4Test {
 
 	}
 
+	/**
+	 * Just in case any hash values are missing
+	 */
+	@Test
+	public void testCreateAndUpdateStringAndTokenWhereHashesAreNull() {
+		Patient p = new Patient();
+		p.addIdentifier().setSystem("sys1").setValue("val1");
+		p.addName().setFamily("FAMILY1");
+		IIdType id = myPatientDao.create(p).getId().toUnqualifiedVersionless();
+
+		runInTransaction(()->{
+			myEntityManager.createQuery("UPDATE ResourceIndexedSearchParamString s SET s.myHashIdentity = null").executeUpdate();
+			myEntityManager.createQuery("UPDATE ResourceIndexedSearchParamString s SET s.myHashExact = null").executeUpdate();
+			myEntityManager.createQuery("UPDATE ResourceIndexedSearchParamString s SET s.myHashNormalizedPrefix = null").executeUpdate();
+			myEntityManager.createQuery("UPDATE ResourceIndexedSearchParamToken s SET s.myHashIdentity = null").executeUpdate();
+			myEntityManager.createQuery("UPDATE ResourceIndexedSearchParamToken s SET s.myHashSystem = null").executeUpdate();
+			myEntityManager.createQuery("UPDATE ResourceIndexedSearchParamToken s SET s.myHashValue = null").executeUpdate();
+			myEntityManager.createQuery("UPDATE ResourceIndexedSearchParamToken s SET s.myHashSystemAndValue = null").executeUpdate();
+		});
+
+		p = new Patient();
+		p.setId(id);
+		p.addIdentifier().setSystem("sys2").setValue("val2");
+		p.addName().setFamily("FAMILY2");
+		myPatientDao.update(p);
+
+		SearchParameterMap map = new SearchParameterMap();
+		map.setLoadSynchronous(true);
+		map.add(Patient.SP_FAMILY, new StringParam("FAMILY2"));
+		Patient newPatient = (Patient) myPatientDao.search(map).getResources(0,1).get(0);
+		assertEquals("FAMILY2", newPatient.getName().get(0).getFamily());
+	}
 
 	@Test
 	public void testUpdateNotModifiedDoesNotAffectDates() {
@@ -707,7 +740,7 @@ public class FhirResourceDaoR4UpdateTest extends BaseJpaR4Test {
 			p2.setId(new IdType("Patient/" + p1id.getIdPart()));
 			myOrganizationDao.update(p2, mySrd);
 			fail();
-		} catch (UnprocessableEntityException e) {
+		} catch (InvalidRequestException e) {
 			ourLog.error("Good", e);
 		}
 
@@ -925,6 +958,24 @@ public class FhirResourceDaoR4UpdateTest extends BaseJpaR4Test {
 		assertEquals("Hello", p.getName().get(0).getFamily());
 
 	}
+
+	@Test
+	public void testUpdateWithUuidServerResourceStrategy_ClientIdNotAllowed() {
+		myDaoConfig.setResourceServerIdStrategy(DaoConfig.IdStrategyEnum.UUID);
+		myDaoConfig.setResourceClientIdStrategy(DaoConfig.ClientIdStrategyEnum.NOT_ALLOWED);
+
+		Patient p = new Patient();
+		p.setId(UUID.randomUUID().toString());
+		p.addName().setFamily("FAM");
+		try {
+			myPatientDao.update(p);
+			fail();
+		} catch (ResourceNotFoundException e) {
+			assertThat(e.getMessage(), matchesPattern("No resource exists on this server resource with ID.*, and client-assigned IDs are not enabled."));
+		}
+
+	}
+
 
 	@AfterClass
 	public static void afterClassClearContext() {

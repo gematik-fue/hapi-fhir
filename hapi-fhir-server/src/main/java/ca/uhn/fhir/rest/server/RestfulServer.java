@@ -34,20 +34,35 @@ import ca.uhn.fhir.parser.IParser;
 import ca.uhn.fhir.rest.annotation.Destroy;
 import ca.uhn.fhir.rest.annotation.IdParam;
 import ca.uhn.fhir.rest.annotation.Initialize;
-import ca.uhn.fhir.rest.api.*;
+import ca.uhn.fhir.rest.api.Constants;
+import ca.uhn.fhir.rest.api.EncodingEnum;
+import ca.uhn.fhir.rest.api.MethodOutcome;
+import ca.uhn.fhir.rest.api.PreferReturnEnum;
+import ca.uhn.fhir.rest.api.RequestTypeEnum;
+import ca.uhn.fhir.rest.api.RestOperationTypeEnum;
 import ca.uhn.fhir.rest.api.server.IFhirVersionServer;
 import ca.uhn.fhir.rest.api.server.IRestfulServer;
 import ca.uhn.fhir.rest.api.server.ParseAction;
 import ca.uhn.fhir.rest.api.server.RequestDetails;
 import ca.uhn.fhir.rest.server.RestfulServerUtils.ResponseEncoding;
-import ca.uhn.fhir.rest.server.exceptions.*;
+import ca.uhn.fhir.rest.server.exceptions.AuthenticationException;
+import ca.uhn.fhir.rest.server.exceptions.BaseServerResponseException;
+import ca.uhn.fhir.rest.server.exceptions.InvalidRequestException;
+import ca.uhn.fhir.rest.server.exceptions.NotModifiedException;
+import ca.uhn.fhir.rest.server.exceptions.ResourceGoneException;
+import ca.uhn.fhir.rest.server.exceptions.ResourceNotFoundException;
 import ca.uhn.fhir.rest.server.interceptor.ExceptionHandlingInterceptor;
 import ca.uhn.fhir.rest.server.interceptor.IServerInterceptor;
 import ca.uhn.fhir.rest.server.method.BaseMethodBinding;
 import ca.uhn.fhir.rest.server.method.ConformanceMethodBinding;
+import ca.uhn.fhir.rest.server.method.MethodMatchEnum;
 import ca.uhn.fhir.rest.server.servlet.ServletRequestDetails;
 import ca.uhn.fhir.rest.server.tenant.ITenantIdentificationStrategy;
-import ca.uhn.fhir.util.*;
+import ca.uhn.fhir.util.CoverageIgnore;
+import ca.uhn.fhir.util.ReflectionUtil;
+import ca.uhn.fhir.util.UrlPathTokenizer;
+import ca.uhn.fhir.util.UrlUtil;
+import ca.uhn.fhir.util.VersionUtil;
 import com.google.common.collect.Lists;
 import org.apache.commons.lang3.RandomStringUtils;
 import org.apache.commons.lang3.StringUtils;
@@ -70,7 +85,15 @@ import java.io.Writer;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.List;
+import java.util.ListIterator;
+import java.util.Map;
 import java.util.Map.Entry;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
@@ -302,7 +325,7 @@ public class RestfulServer extends HttpServlet implements IRestfulServer<Servlet
 		ResourceBinding resourceBinding = null;
 		BaseMethodBinding<?> resourceMethod = null;
 		String resourceName = requestDetails.getResourceName();
-		if (myServerConformanceMethod.incomingServerRequestMatchesMethod(requestDetails)) {
+		if (myServerConformanceMethod.incomingServerRequestMatchesMethod(requestDetails) != MethodMatchEnum.NONE) {
 			resourceMethod = myServerConformanceMethod;
 		} else if (resourceName == null) {
 			resourceBinding = myServerBinding;
@@ -1788,6 +1811,21 @@ public class RestfulServer extends HttpServlet implements IRestfulServer<Servlet
 			}
 		}
 	}
+
+	/**
+	 * Unregisters all plain and resource providers (but not the conformance provider).
+	 */
+	public void unregisterAllProviders() {
+		unregisterAllProviders(myPlainProviders);
+		unregisterAllProviders(myResourceProviders);
+	}
+
+	private void unregisterAllProviders(List<?> theProviders) {
+		while (theProviders.size() > 0) {
+			unregisterProvider(theProviders.get(0));
+		}
+	}
+
 
 	private void writeExceptionToResponse(HttpServletResponse theResponse, BaseServerResponseException theException) throws IOException {
 		theResponse.setStatus(theException.getStatusCode());
