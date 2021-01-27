@@ -1,6 +1,29 @@
 HAPI FHIR
 =========
 
+## building fork
+building fort and  publishing 
+* `mvn -Dmaven.test.skip=true -P ALLMODULES,NOPARALLEL clean`
+* `mvn -Dmaven.test.skip=true -P ALLMODULES,NOPARALLEL package`
+* `mvn -Dmaven.test.skip=true -P ALLMODULES,NOPARALLEL install`
+* `mvn -Dmaven.test.skip=true -pl hapi-fhir-server deploy`
+* `mvn -Dmaven.test.skip=true -pl hapi-fhir-jpaserver-base deploy`
+
+Configure $HOME/.m2/settings
+```xml
+<settings xmlns="http://maven.apache.org/SETTINGS/1.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+xsi:schemaLocation="http://maven.apache.org/SETTINGS/1.0.0 https://maven.apache.org/xsd/settings-1.0.0.xsd">
+<servers>
+<server>
+<id>labor-repo</id>
+<username>shared_publish_user</username>
+<password>***</password>
+</server>
+</servers>
+</settings>
+```
+
+
 HAPI FHIR - Java API for HL7 FHIR Clients and Servers
 
 [![Build Status](https://dev.azure.com/jamesagnew214/jamesagnew214/_apis/build/status/jamesagnew.hapi-fhir?branchName=master)](https://dev.azure.com/jamesagnew214/jamesagnew214/_build/latest?definitionId=1&branchName=master)
